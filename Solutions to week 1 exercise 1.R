@@ -1,3 +1,4 @@
+#Solutions to week 1 exercise 1
 library(ggplot2)
 
 dx <- function(x){
