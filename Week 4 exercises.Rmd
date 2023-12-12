@@ -58,24 +58,84 @@ make_path <- function(tmax, x1_0, x2_0, x3_0, rho, delta, eta, lambda, N1, C, si
   for (k in (1:(nosteps))){
     x[k+1,] <- x[k,] + drift(x[k,])*deltat + sigma*x[k,]*dW[k,] + 0.5*sigma*x[k,]*sigma*(dW[k,]*dW[k,] - deltat)
   }
-  out <- data.frame(data = x)
-  colnames(out) <- c("x1", "x2", "x3")
+  
+  #Creating output and adding time variable
+  t <- (0:nosteps)*deltat
+  out <- data.frame(x, t)
+  colnames(out) <- c("x1", "x2", "x3", 't')
   out
 }
 ```
 
 ```{r}
 subsample <- function(x){
-  x_fine <- matrix(data = 0, nrow = 500, ncol = 3)
-  for (i in (1:500)){
-    x_fine[i,] <- x[20*(i-1) + 1]
-  }
+  x <- as.matrix(x)
   
-  x_course <- matrix(data = 0, nrow = 100, ncol = 3)
-  for (i in (1:100)){
-    x_fine[i,] <- x[100*(i-1) + 1]
+  x_fine <- matrix(data = 0, nrow = 500, ncol = 4)
+  for (i in (1:500)){
+    x_fine[i,] <- x[20*(i-1) + 1,]
   }
+  x_fine <- as.data.frame(x_fine)
+  colnames(x_fine) <- c('x1','x2','x3','t')
+  
+  x_coarse <- matrix(data = 0, nrow = 100, ncol = 4)
+  for (i in (1:100)){
+    x_coarse[i,] <- x[100*(i-1) + 1,]
+  }
+  x_coarse <- as.data.frame(x_coarse)
+  colnames(x_coarse) <- c('x1','x2','x3','t')
+  
+  out <- list(x_fine, x_coarse)
+  out
 }
+```
+```{r}
+path <- make_path(tmax = 10, x1_0 = 600, x2_0 = 30, x3_0 = 10^5, rho = 0.108, delta = 0.5, eta = 9.5*10^(-6), lambda = 36, N1 = 1000, C = 3, sigma1 = 0.1, sigma2 = 0.1, sigma3 = 0.1, deltat = 0.001)
+sampled_path <- subsample(path)
+x_fine <- sampled_path[[1]]
+x_coarse <- sampled_path[[2]]
+```
+
+###Plotting the trajectory
+```{r include=FALSE}
+library(plotly)
+```
+```{r}
+path_plot_fine <- plot_ly(x_fine, x = ~x1, y = ~x2, z = ~x3,
+                          type = 'scatter3d', mode = 'lines+markers',
+                          line = list(width = 6, color = ~t, colorscale = 'Viridis'),
+                          marker = list(size = 3.5, color = ~t, colorscale = 'Greens', cmin = -20, cmax = 50))
+path_plot_fine
+```
+```{r}
+path_plot_coarse <- plot_ly(x_coarse, x = ~x1, y = ~x2, z = ~x3,
+                          type = 'scatter3d', mode = 'lines+markers',
+                          line = list(width = 6, color = ~t, colorscale = 'Viridis'),
+                          marker = list(size = 3.5, color = ~t, colorscale = 'Greens', cmin = -20, cmax = 50))
+path_plot_coarse
+```
+
+### Euler-Maruyama Estimator
+For making inference, we need to have a likelihood for a ny given parameter $\theta$. This will be the sum of the likelihoods of each step, under the EM-hypothesis. Thus, for each increment, we need to assign a likelihood of that increment, given the parameter vector. In this case, the stochastic increments to each coordinate are independent, due to the diagonal structure of $\Sigma$. So the stochastic quantities here are Normal and Chi-square distributed. But we have a sum here, but one is a deterministic transformation of the other. But there might be more that one dW that give the same increment. In that case i suppose we have to assign both the likelihoods. Do we need to take a convolution to find the density of the sum? Apparently, we are to use a Gaussian approximation as given on the slides. The books probably cover this as well.
+Upon looking at the slides again, the EM-based estimator seems quite doable.
+```{r}
+drift <- function(x){
+    x1 <- x[1]
+    x2 <- x[2]
+    x3 <- x[3]
+    y1 <- lambda - rho*x1 - eta*x1*x3
+    y2 <- eta*x1*x3 - delta*x2
+    y3 <- N1*delta*x2 - C*x3
+    y <- c(y1, y2, y3)
+    y
+  }
+likelihood_step <- function(theta, x, x_next){
+  # need to assign subparameters of theta to the names used in the code
+  y <- drift(x)
+  a <- log(((2*pi*deltat)^3) * (x[1]*x[2]*x[3]*sigma1*sigma2*sigma3)^2)
+  b <- ((x_next - x + y*deltat)^2)*c((x[1]*sigma1)^(-2), (x[2]*sigma2)^(-2), (x[3]*sigma3)^(-2))/deltat
+  }
+  a+b
 ```
 
 
