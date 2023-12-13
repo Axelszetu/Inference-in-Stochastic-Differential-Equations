@@ -22,7 +22,7 @@ N1 <- 1000
 C <- 3
 sigma1 <- 0.1
 sigma2 <- 0.1
-sigma2 <- 0.1
+sigma3 <- 0.1
 ```
 
 ```{r}
@@ -118,25 +118,68 @@ path_plot_coarse
 ### Euler-Maruyama Estimator
 For making inference, we need to have a likelihood for a ny given parameter $\theta$. This will be the sum of the likelihoods of each step, under the EM-hypothesis. Thus, for each increment, we need to assign a likelihood of that increment, given the parameter vector. In this case, the stochastic increments to each coordinate are independent, due to the diagonal structure of $\Sigma$. So the stochastic quantities here are Normal and Chi-square distributed. But we have a sum here, but one is a deterministic transformation of the other. But there might be more that one dW that give the same increment. In that case i suppose we have to assign both the likelihoods. Do we need to take a convolution to find the density of the sum? Apparently, we are to use a Gaussian approximation as given on the slides. The books probably cover this as well.
 Upon looking at the slides again, the EM-based estimator seems quite doable.
+Implementing likelihood evaluation for single step
 ```{r}
-drift <- function(x){
-    x1 <- x[1]
-    x2 <- x[2]
-    x3 <- x[3]
-    y1 <- lambda - rho*x1 - eta*x1*x3
-    y2 <- eta*x1*x3 - delta*x2
-    y3 <- N1*delta*x2 - C*x3
-    y <- c(y1, y2, y3)
+likelihood_step <- function(theta, x, x_next, deltat, params){
+  #Defining tunable and constant parameters
+  
+  #Defining drift function
+  drift <- function(x){
+    x1 <- x[[1]]
+    x2 <- x[[2]]
+    x3 <- x[[3]]
+    y <- numeric(length = 3)
+    y[1] <- lambda - rho*x1 - eta*x1*x3
+    y[2] <- eta*x1*x3 - delta*x2
+    y[3] <- N1*delta*x2 - C*x3
     y
   }
-likelihood_step <- function(theta, x, x_next){
   # need to assign subparameters of theta to the names used in the code
+  z <- numeric(3)
+  z[1] <- x[[1]]
+  z[2] <- x[[2]]
+  z[3] <- x[[3]]
+  #z_next <- numeric(3)
+  #z_next[1] <- x_next
+  #browser()
   y <- drift(x)
-  a <- log(((2*pi*deltat)^3) * (x[1]*x[2]*x[3]*sigma1*sigma2*sigma3)^2)
-  b <- ((x_next - x + y*deltat)^2)*c((x[1]*sigma1)^(-2), (x[2]*sigma2)^(-2), (x[3]*sigma3)^(-2))/deltat
+  a <- log(((2*pi*deltat)^3) * (z[1]*z[2]*z[3]*sigma1*sigma2*sigma3)^2)
+  b <- ((x_next - x + y*deltat)^2)*c((z[1]*sigma1)^(-2), (z[2]*sigma2)^(-2), (z[3]*sigma3)^(-2))/deltat
+  c <- b[[1]]*b[[2]]*b[[3]]
+  a+c
   }
-  a+b
 ```
+
+```{r}
+#Test chunk
+theta <- c(lambda, N1, C, sigma1, sigma2, sigma3)
+likelihood_step(theta = theta, x = x_coarse[1,], x_next = x_coarse[2,], deltat = 0.1)
+#We get a number, so that's good.
+```
+Implementing likelihood for entire process
+```{r}
+likelihood_total <- function(theta, process, deltat){
+  nosteps <- length(process[,1])-1
+  cumulative_likelihood <- 0
+  for (i in (1:nosteps)){
+    cumulative_likelihood <- cumulative_likelihood + likelihood_step(theta = theta, x = process[i,], x_next = process[i+1,], deltat = deltat)
+  }
+  cumulative_likelihood
+}
+```
+Testing total likelihood function
+```{r}
+likelihood_total(theta = theta, process = x_coarse, deltat = 0.1)
+#We get a number, wwhich is promising
+```
+Now, we try to optimize this for some parameter vector theta.
+```{r}
+theta_0 <- c(100, 100, 100, 5, 10, 30)
+optim(par = theta_0, fn = likelihood_total, process = x_coarse, deltat = 0.1)
+```
+
+
+
 
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
