@@ -1,11 +1,7 @@
 ---
-title: "R Notebook"
+title: "ISDE Exercises Week 4"
 output: html_notebook
 ---
-
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
 
 ###Simulating Trajectories
 
@@ -120,8 +116,14 @@ For making inference, we need to have a likelihood for a ny given parameter $\th
 Upon looking at the slides again, the EM-based estimator seems quite doable.
 Implementing likelihood evaluation for single step
 ```{r}
-likelihood_step <- function(theta, x, x_next, deltat, params){
+likelihood_step <- function(theta, x, x_next, deltat){
   #Defining tunable and constant parameters
+  lambda <- theta[1]
+  N1 <- theta[2]
+  C <- theta[3]
+  sigma1 <- theta[4]
+  sigma2 <- theta[5]
+  sigma3 <- theta[6]
   
   #Defining drift function
   drift <- function(x){
@@ -170,20 +172,32 @@ likelihood_total <- function(theta, process, deltat){
 Testing total likelihood function
 ```{r}
 likelihood_total(theta = theta, process = x_coarse, deltat = 0.1)
-#We get a number, wwhich is promising
+#We get a number, which is promising
+likelihood_total(theta = theta_0, process = x_coarse, deltat = 0.1)
 ```
+We see that evaluating the total likelihood function returns the same number for two different set of parameters.
+This indicates that that the total likelihood fucntion doesn't in fact use the parameter provided for evaluation.
+It seems that likelihood_step takes its parameters from the global envieronment rather than its arguement.
+Ths would explain why the likelihood is evaluated to the same for any parameter.
+Now we got different numbers.
+
 Now, we try to optimize this for some parameter vector theta.
 ```{r}
-theta_0 <- c(100, 100, 100, 5, 10, 30)
-optim(par = theta_0, fn = likelihood_total, process = x_coarse, deltat = 0.1)
+theta_0 <- c(50, 2000, 10, 0.5, 0.5, 0.5)
+optim(par = theta_0, fn = likelihood_total, process = x_coarse, deltat = 0.1, lower = c(0,0,0,0,0,0), method = "L-BFGS-B")
 ```
+It would appear that i have made a mistake: Optim outputs the initial parameters, and states that convergence was not reached.
+Another mistake is not finishing a coding project before taking a 2-week break: It's a little difficult to jumo in again.
+
+It takes some time to run now, and we don't get convergence or the right results.
+The total likelihood function was called over 400 times, probably because of lack of convergence, which might also be why it takes so long.
+Question: are we maximizing or minimizing?
+What is the parameter space?
+What exactly is the quantity being computed in the step likelihood function? I think it is the likelihood, formula from the slides.
+Let's try with some parameters that are closer to the real ones.
+We get completely atrocious estimates.
+We try bounding barameter values from below with zero and using L-BFGS-B method.
+It seems that we get infinite values from total likelihood, which is unfortunate. Maybe the log is fucking me?
 
 
 
-
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
