@@ -97,3 +97,57 @@ RK4_solver <- function(x0, tmax, deltat){
 RK4_path <- RK4_solver(2, 10, 0.05)
 RK4_path_plot <- ggplot(data = RK4_path, mapping = aes(x = t, y = X)) + geom_line()
 RK4_path_plot
+
+#Now, we have the slave work of doing making plots for different values of dt, for each method.
+#If I am clever I might make a function computing the error and making the plot for a given method, and vector of dt values.
+
+abs_error_computer <- function(x0, tmax, deltat, method){
+  t <- seq(from = 0, to = tmax, deltat)
+  path_sim <- method(x0, tmax, deltat)
+  analytic_sol <- function(t){
+    analytic_solver(x0 = x0, t = t)
+  }
+  path_an <- analytic_sol(t)
+  abs_error <- abs(path_sim[,2] - path_an)
+  plt_data <- data.frame('t' = t, 'error' = abs_error)
+  ggplot(data = plt_data, mapping = aes(x = t, y = error)) + geom_line() + labs(title = paste("Method =", deparse(substitute(method)), "deltat =", deltat))
+}
+abs_error_computer(x0 = 2, tmax = 10, deltat = 0.05, method = Heun_solver)
+#As suspected, the absolute error goes to 0 quite quickly, as we would expect since the system has an attracting stationary point.
+#We need to shorten the time horizon to get something interesting: We need the error of the numerical method to propagate faster than the system converges.
+
+abs_error_computer(x0 = 2, tmax = 1, deltat = 0.005, method = Euler_solver)
+
+#Now, lets make a function that takes a vector of deltats and makes the plot for each of them.
+
+timestep_comparison <- function(x0, tmax, deltats, method){
+  individual_computer <- function(deltat){
+    abs_error_computer(x0 = x0, tmax = tmax, deltat = deltat, method = method)
+  }
+  out <- lapply(X = deltats, FUN = individual_computer)
+  out
+}
+
+deltats <- c(0.05, 0.005, 0.0005)
+timestep_comparison(x0 = 2, tmax = 1, deltats = deltats, method = Euler_solver)
+timestep_comparison(x0 = 2, tmax = 1, deltats = deltats, method = Heun_solver)
+timestep_comparison(x0 = 2, tmax = 1, deltats = deltats, method = RK4_solver)
+
+#From the plots we conclude that the Euler solver is worse than the Heun solver, which again is worse than the RK4 solver.
+
+#Now, we implement a Strang splitting scheme
+Strang_solver <- function(x0, tmax, deltat){
+  t <- seq(from = 0, to = tmax, by = deltat)
+  length <- length(t)
+  x <- numeric(length)
+  x[1] <- x0
+  for (i in 2:length){
+    x[i] <- sign(x[i-1])*((x[i-1]^(-2) + deltat) * exp(-2*deltat) + deltat)^(-(1/2))
+  }
+  path <- data.frame("t" = t, "X" = x)
+  path
+}
+
+timestep_comparison(x0 = 2, tmax = 1, deltats = deltats, method = Strang_solver)
+#It seems to work, and better than the Heun solver,yet worse than the RK$ solver in this case.
+#Predrags solution outlines some of the peculiar properties of this model and how it interacts specifically with the Strang and LT algorithms.
